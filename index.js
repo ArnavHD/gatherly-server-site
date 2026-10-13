@@ -3,7 +3,7 @@ const cors = require("cors");
 const app = express();
 require("dotenv").config();
 const port = process.env.PORT || 3000;
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 // middleware
 app.use(cors());
@@ -27,15 +27,44 @@ async function run() {
     await client.connect();
 
     const eventsCollection = client.db("gatherlyServer").collection("events");
+    const applicationsCollection = client.db("gatherlyServer").collection("applications");
 
-    // jobs api
+    // event api
     app.get("/events", async (req, res) => {
       const cursor = eventsCollection.find();
       const result = await cursor.toArray();
       res.send(result);
     });
 
+    // get specific events
+    app.get("/events/:id", async(req, res)=>{
+        const id = req.params.id;
+        const query = {_id: new ObjectId(id)};
+        const result = await eventsCollection.findOne(query);
+        res.send(result);
+    }) 
+    
+    // event application related apis
+    app.get('/applications', async(req, res) =>{
+        const email = req.query.email;
 
+        const query = {
+            applicant : email,
+        }
+        const result = await applicationsCollection.find(query).toArray();
+        res.send(result);
+    })
+    
+
+
+
+    app.post('/applications', async(req, res)=>{
+        const application = req.body;
+        console.log(application);
+        const result = await applicationsCollection.insertOne(application);
+        res.send(result);
+    })
+    
 
 
     // Sends a ping to confirm a successful connection

@@ -3,6 +3,15 @@ const cors = require("cors");
 const app = express();
 require("dotenv").config();
 const port = process.env.PORT || 3000;
+const { initializeApp, cert } = require("firebase-admin/app");
+const { getAuth } = require("firebase-admin/auth");
+
+// const admin = require("firebase-admin");
+
+const serviceAccount = require("./firebase-admin-serviece-key.json");
+
+
+
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 // middleware
@@ -21,6 +30,48 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+
+
+initializeApp({
+  credential: cert(serviceAccount),
+});
+
+
+
+const varifyFirebaseToken = async(req, res, next) =>{
+  const authHeader = req.headers?.authorization;
+  
+ 
+  if(! authHeader || !authHeader.startsWith('Bearer ')){
+    return res.status(401).send({message: 'Unauthorized access'});
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try{
+    const decoded = await getAuth().verifyIdToken(token);
+    console.log("decoded token", decoded);
+    req.decoded = decoded;
+    next();
+  }
+  catch(error){
+    return res.status(401).send({message: "Unauthorized access"});
+  }
+
+  console.log('token in the middleware', token);
+  
+};
+
+const varifyTokenEmail = (req, res, next) =>{
+
+  if(req.query.email !== req.decoded.email){
+    return res.status(403).send({message: 'Forbidden Access'});
+  }
+  next();
+
+}
+
+
 async function run() {
   try {
     // Connects the client to the server (optional starting in v4.7)
@@ -30,8 +81,17 @@ async function run() {
     const applicationsCollection = client.db("gatherlyServer").collection("applications");
 
     // event api
-    app.get("/events", async (req, res) => {
-      const cursor = eventsCollection.find();
+    app.get("/events", varifyFirebaseToken, varifyTokenEmail, async (req, res) => {
+
+      const email = req.query.email;
+
+      const query = {};
+      if(email){
+        query["organizer.email"] = email;
+
+      }
+
+      const cursor = eventsCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -43,10 +103,20 @@ async function run() {
         const result = await eventsCollection.findOne(query);
         res.send(result);
     }) 
+
+    app.post('/events', async(req, res)=>{
+      const newEvent = req.body;
+      console.log(newEvent);
+      const result = await eventsCollection.insertOne(newEvent);
+      res.send(result);
+    })
+
+
     
     // event application related apis
-    app.get('/applications', async(req, res) =>{
+    app.get('/applications', varifyFirebaseToken, varifyTokenEmail, async(req, res) =>{
         const email = req.query.email;
+
 
         const query = {
             applicant : email,
@@ -54,15 +124,34 @@ async function run() {
         const result = await applicationsCollection.find(query).toArray();
         res.send(result);
     })
+
+    app.get("/applications/event/:event_id", async (req, res) => {
+      const event_id = req.params.event_id;
+      const query = { eventId: event_id };
+      const result = await applicationsCollection.find(query).toArray();
+      res.send(result);
+    });
     
-
-
 
     app.post('/applications', async(req, res)=>{
         const application = req.body;
         console.log(application);
         const result = await applicationsCollection.insertOne(application);
         res.send(result);
+    })
+
+    app.patch('/applications/:id', async(req, res) =>{
+      const id = req.params.id;
+      const updated = req.body;
+      const filter = {_id: new ObjectId(id)};
+
+      const updatedDoc = {
+        $set: {
+          status: req.body.status,
+        }
+      }
+      const result = await applicationsCollection.updateOne(filter, updatedDoc);
+      res.send(result);
     })
     
 

@@ -50,7 +50,7 @@ const varifyFirebaseToken = async(req, res, next) =>{
 
   try{
     const decoded = await getAuth().verifyIdToken(token);
-    console.log("decoded token", decoded);
+    // console.log("decoded token", decoded);
     req.decoded = decoded;
     next();
   }
@@ -58,7 +58,7 @@ const varifyFirebaseToken = async(req, res, next) =>{
     return res.status(401).send({message: "Unauthorized access"});
   }
 
-  console.log('token in the middleware', token);
+  // console.log('token in the middleware', token);
   
 };
 
@@ -81,20 +81,33 @@ async function run() {
     const applicationsCollection = client.db("gatherlyServer").collection("applications");
 
     // event api
-    app.get("/events", varifyFirebaseToken, varifyTokenEmail, async (req, res) => {
+    app.get("/events", async (req, res) => {
+
+      // const email = req.query.email;
+
+      // const query = {};
+      // if(email){
+      //   query["organizer.email"] = email;
+
+      // }
+
+      const cursor = eventsCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.get("/my-events", varifyFirebaseToken, varifyTokenEmail, async(req, res)=>{
 
       const email = req.query.email;
 
       const query = {};
-      if(email){
+      if(email) {
         query["organizer.email"] = email;
-
       }
 
-      const cursor = eventsCollection.find(query);
-      const result = await cursor.toArray();
+      const result = await eventsCollection.find(query).toArray();
       res.send(result);
-    });
+    })
 
     // get specific events
     app.get("/events/:id", async(req, res)=>{

@@ -9,7 +9,9 @@ const port = process.env.PORT || 3000;
 
 // const admin = require("firebase-admin");
 
-const serviceAccount = require("./firebase-admin-serviece-key.json");
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8');
+
+const serviceAccount = JSON.parse(decoded);
 
 
 
@@ -75,7 +77,7 @@ const varifyTokenEmail = (req, res, next) =>{
 async function run() {
   try {
     // Connects the client to the server (optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const eventsCollection = client.db("gatherlyServer").collection("events");
     const applicationsCollection = client.db("gatherlyServer").collection("applications");
